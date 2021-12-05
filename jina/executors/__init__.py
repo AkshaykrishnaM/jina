@@ -1,14 +1,14 @@
 import inspect
 import os
 from types import SimpleNamespace
-from typing import Dict, Optional, Type
+from typing import Dict, Optional, Type, List
 
-from .decorators import store_init_kwargs, wrap_func
+from .decorators import store_init_kwargs, wrap_func, requests
 from .. import __default_endpoint__, __args_executor_init__
 from ..helper import typename, ArgNamespace, T
 from ..jaml import JAMLCompatible, JAML, subvar_regex, internal_var_regex
 
-__all__ = ['BaseExecutor']
+__all__ = ['BaseExecutor', 'ReducerExecutor']
 
 
 class ExecutorType(type(JAMLCompatible), type):
@@ -258,3 +258,24 @@ class BaseExecutor(JAMLCompatible, metaclass=ExecutorType):
                 f'Docker container, you may want to use it in the Flow via `.add(uses={uri})` instead.'
             )
         return cls.load_config(_source)
+
+
+class ReducerExecutor(BaseExecutor):
+    """
+    ReducerExecutor is an Executor that performs a reduce operation on a matrix of DocumentArrays coming from shards.
+    ReducerExecutor relies on DocumentArray.reduce_all to merge all DocumentArray into one DocumentArray which will be
+    sent to the next pod.
+
+    This Executor only adds a reduce endpoint to the BaseExecutor.
+    """
+
+    @requests
+    def reduce(self, docs_matrix: List['DocumentArray'] = [], **kwargs):
+        """Reduce docs_matrix into one `DocumentArray` using `DocumentArray.reduce_all`
+        :param docs_matrix: a List of DocumentArrays to be reduced
+        :param kwargs: extra keyword arguments
+        :return: the reduced DocumentArray
+        """
+        da = docs_matrix[0]
+        da.reduce_all(docs_matrix[1:])
+        return da
